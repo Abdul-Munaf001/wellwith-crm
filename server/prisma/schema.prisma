@@ -1,0 +1,498 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  logoUrl             String?
+  customTheme         String?  // JSON string or hex color
+  secretWebhookToken  String   @unique @default(cuid())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  users               User[]
+  leads               Lead[]
+  campaigns           Campaign[]
+  programs            Program[]
+  whatsappTemplates   WhatsappTemplate[]
+  auditLogs           AuditLog[]
+  featureFlags        FeatureFlag[]
+  tags                Tag[]
+  sources             Source[]
+  aiCampaigns         AiCallCampaign[]
+  aiScripts           AiCallScript[]
+  aiResults           AiCallResult[]
+  callLogs            CallLog[]
+  followUps           FollowUp[]
+  activities          LeadActivity[]
+  consultations       Consultation[]
+  enrollments         Enrollment[]
+  importJobs          ImportJob[]
+  notifications       Notification[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         String    // "SUPER_ADMIN" | "TEAM_MEMBER" | "CLIENT_ADMIN"
+  phone        String?
+  avatar       String?
+  isActive     Boolean   @default(true)
+  workspaceId  String?   // null for Super Admin, or workspace id
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads        Lead[]     @relation("AssignedLeads")
+  callLogs     CallLog[]
+  activities   LeadActivity[]
+  followUps    FollowUp[]
+  consultations Consultation[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+
+  @@index([workspaceId])
+  @@index([role])
+  @@map("users")
+}
+
+model Lead {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  name               String
+  phone              String
+  whatsappNumber     String?
+  email              String?
+  age                Int?
+  gender             String?   // "Female" | "Male" | "Other"
+  city               String?
+  
+  // Wellness specific fields
+  wellnessGoal       String?   // "Weight Loss", "Stress Relief", "Yoga & Flexibility", "Nutrition", "Diabetes Care", "PCOS", "Gut Health", "Sleep"
+  healthConcerns     String?
+  budgetRange        String?   // "₹5,000 - ₹10,000", "₹10,000 - ₹25,000", "₹25,000+"
+  preferredCallTime  String?   // "Morning (9am-12pm)", "Afternoon (12pm-4pm)", "Evening (4pm-8pm)"
+  language           String?   // "English", "Hindi", "Telugu", "Tamil", "Kannada", "Marathi"
+  
+  // Acquisition tracking
+  source             String    @default("Meta") // "Meta", "Google", "Instagram", "Referral", "Walk-in", "Website"
+  campaignId         String?
+  adSetName          String?
+  adName             String?
+  utmSource          String?
+  utmCampaign        String?
+  utmMedium          String?
+  utmContent         String?
+  
+  // CRM Management
+  assignedToId       String?
+  status             String    @default("New Enquiry") // "New Enquiry", "Contacted", "Wellness Assessment Done", "Consultation Booked", "Trial/Demo Attended", "Program Enrolled", "Active Member", "Renewal Due", "Lost"
+  temperature        String    @default("Warm") // "Hot", "Warm", "Cold"
+  heatScore          Int       @default(50)     // 0-100 calculated score
+  
+  notes              String?
+  lastContactedAt    DateTime?
+  nextFollowupAt     DateTime?
+
+  // Wellness Intake Mini-Form
+  intakeCompleted    Boolean   @default(false)
+  intakeSleep        String?   // e.g. "5-6 hours, restless"
+  intakeStress       String?   // e.g. "High (work pressure)"
+  intakeDiet         String?   // e.g. "Vegetarian, high carb"
+  intakeExercise     String?   // e.g. "Sedentary"
+  intakeMedicalFlags String?   // e.g. "Thyroid, Pre-diabetic"
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo         User?           @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  campaign           Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  
+  activities         LeadActivity[]
+  callLogs           CallLog[]
+  followUps          FollowUp[]
+  tags               LeadTag[]
+  consultations      Consultation[]
+  enrollments        Enrollment[]
+  aiResults          AiCallResult[]
+
+  @@index([workspaceId])
+  @@index([phone])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([heatScore])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model LeadTag {
+  id        String   @id @default(cuid())
+  leadId    String
+  tagId     String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, tagId])
+  @@map("lead_tags")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String    @default("#16A34A")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadTags    LeadTag[]
+
+  @@unique([workspaceId, name])
+  @@map("tags")
+}
+
+model Source {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  isActive    Boolean   @default(true)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@map("sources")
+}
+
+model LeadActivity {
+  id          String    @id @default(cuid())
+  leadId      String
+  workspaceId String
+  userId      String?
+  type        String    // "CALL", "STATUS_CHANGE", "NOTE", "ASSIGNMENT", "WHATSAPP", "INTAKE", "CONSULTATION", "ENROLLMENT"
+  title       String
+  description String?
+  metadata    String?   // JSON string
+  createdAt   DateTime  @default(now())
+
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("lead_activities")
+}
+
+model CallLog {
+  id              String    @id @default(cuid())
+  leadId          String
+  workspaceId     String
+  userId          String
+  outcome         String    // "Answered", "Not Answered", "Busy", "Switched Off", "Wrong Number", "Call Back Later", "Not Interested", "Interested"
+  notes           String?
+  durationSeconds Int?      // Nullable Phase 1, "Coming soon" telephony integration
+  nextFollowupAt  DateTime?
+  createdAt       DateTime  @default(now())
+
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("call_logs")
+}
+
+model FollowUp {
+  id          String    @id @default(cuid())
+  leadId      String
+  workspaceId String
+  userId      String
+  title       String
+  notes       String?
+  dueDate     DateTime
+  status      String    @default("PENDING") // "PENDING", "COMPLETED", "SNOOZED", "CANCELLED"
+  priority    String    @default("MEDIUM")  // "HIGH", "MEDIUM", "LOW"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("follow_ups")
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  source      String    // "Meta", "Google", "Instagram"
+  platform    String?
+  utmCampaign String?
+  budget      Float     @default(0)
+  spend       Float     @default(0)
+  status      String    @default("ACTIVE") // "ACTIVE", "PAUSED", "COMPLETED"
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads       Lead[]
+  ads         Ad[]
+  adSpends    AdSpend[]
+
+  @@index([workspaceId])
+  @@map("campaigns")
+}
+
+model Ad {
+  id           String    @id @default(cuid())
+  campaignId   String
+  name         String
+  adSetName    String?
+  spend        Float     @default(0)
+  impressions  Int       @default(0)
+  clicks       Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSpends     AdSpend[]
+
+  @@map("ads")
+}
+
+model AdSpend {
+  id          String    @id @default(cuid())
+  campaignId  String
+  adId        String?
+  date        DateTime
+  amount      Float
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ad          Ad?       @relation(fields: [adId], references: [id], onDelete: SetNull)
+
+  @@map("ad_spend")
+}
+
+model Program {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String?
+  category      String    // "Weight Loss", "Diabetes Care", "Yoga", "Stress Management", "Nutrition", "PCOS"
+  price         Float
+  durationDays  Int
+  talkingPoints String?   // Key benefits and talking points for telecallers
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  enrollments   Enrollment[]
+
+  @@map("programs")
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  leadId      String
+  workspaceId String
+  programId   String
+  amountPaid  Float
+  startDate   DateTime
+  endDate     DateTime
+  status      String    @default("ACTIVE") // "ACTIVE", "COMPLETED", "RENEWAL_DUE", "LAPSED"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  program     Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([leadId])
+  @@index([status])
+  @@index([endDate])
+  @@map("enrollments")
+}
+
+model Consultation {
+  id          String    @id @default(cuid())
+  leadId      String
+  workspaceId String
+  userId      String?
+  scheduledAt DateTime
+  status      String    @default("SCHEDULED") // "SCHEDULED", "COMPLETED", "NO_SHOW", "CANCELLED"
+  notes       String?
+  meetingLink String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([scheduledAt])
+  @@map("consultations")
+}
+
+model WhatsappTemplate {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  name         String
+  category     String    // "Welcome", "Reminder", "Offer", "Renewal", "Followup"
+  bodyTemplate String    // Supports {{name}}, {{program}}, {{link}}, etc.
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_templates")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  title       String
+  message     String
+  type        String    // "FOLLOWUP", "LEAD_ASSIGNED", "SPEED_ALERT", "RENEWAL", "SYSTEM"
+  isRead      Boolean   @default(false)
+  link        String?
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String?
+  userId      String?
+  action      String    // e.g. "LEAD_UPDATE", "LOGIN", "REASSIGN_BULK", "FEATURE_FLAG_TOGGLE"
+  entity      String    // "Lead", "User", "Workspace", "Campaign"
+  entityId    String?
+  details     String?   // JSON or text
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model FeatureFlag {
+  id          String    @id @default(cuid())
+  workspaceId String
+  key         String    // e.g. "ai_telecalling_enabled"
+  enabled     Boolean   @default(false)
+  description String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@map("feature_flags")
+}
+
+model AiCallCampaign {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  name          String
+  segmentFilter String?   // JSON string of filter criteria e.g. { "goal": "Weight Loss", "status": "New Enquiry" }
+  scriptId      String
+  status        String    @default("DRAFT") // "DRAFT", "QUEUED", "IN_PROGRESS", "COMPLETED", "PAUSED"
+  callingHours  String    @default("10:00 - 18:00")
+  totalQueued   Int       @default(0)
+  totalCalled   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  script        AiCallScript   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  results       AiCallResult[]
+
+  @@map("ai_call_campaigns")
+}
+
+model AiCallScript {
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  name                   String
+  language               String    @default("English")
+  greeting               String
+  qualificationQuestions String    // JSON string array
+  objectionHandling      String    // JSON string key-value
+  closing                String
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  workspace              Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns              AiCallCampaign[]
+
+  @@map("ai_call_scripts")
+}
+
+model AiCallResult {
+  id              String          @id @default(cuid())
+  campaignId      String
+  leadId          String
+  workspaceId     String
+  status          String          @default("QUEUED") // "QUEUED", "CALLING", "COMPLETED", "FAILED"
+  transcript      String?
+  detectedIntent  String?         // "Interested", "Not Interested", "Call Back Later", "Qualified"
+  sentiment       String?         // "Positive", "Neutral", "Hesitant", "Negative"
+  durationSeconds Int?
+  calledAt        DateTime?
+
+  campaign        AiCallCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead            Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([leadId])
+  @@map("ai_call_results")
+}
+
+model ImportJob {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  userId        String?
+  filename      String
+  totalRows     Int       @default(0)
+  successRows   Int       @default(0)
+  duplicateRows Int       @default(0)
+  errorRows     Int       @default(0)
+  errors        String?   // JSON string of row errors
+  createdAt     DateTime  @default(now())
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("import_jobs")
+}

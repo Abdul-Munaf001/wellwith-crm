@@ -1,41 +1,35 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Production build outputs
+dist/
+client/dist/
+server/dist/
+build/
+.next/
+out/
 
-# testing
-/coverage
+# Database files
+*.db
+*.db-journal
+server/*.db
+server/prisma/*.db
+server/dev.db
+server/dev.db-journal
 
-# next.js
-/.next/
-/out/
+# Environment files
+.env
+server/.env
+!*.env.example
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs and system
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+.DS_Store
+*.pem
 *.tsbuildinfo
 next-env.d.ts

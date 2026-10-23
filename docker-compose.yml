@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  wellwith-crm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wellwith_crm_app
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - JWT_SECRET=wellwith_super_secret_jwt_key_2026_wellness_crm
+      - DATABASE_URL=file:./dev.db
+    restart: unless-stopped
